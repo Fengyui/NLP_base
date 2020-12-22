@@ -1,0 +1,154 @@
+import nltk
+from nltk.corpus import sentiwordnet as swn
+import pandas as pd
+import numpy as np
+import re
+import string
+from nltk.stem import WordNetLemmatizer
+from nltk.corpus import wordnet as wn
+from sklearn.svm import LinearSVC
+from sklearn.svm import SVC
+from sklearn.feature_extraction.text import CountVectorizer
+from sklearn import metrics
+from sklearn.metrics import accuracy_score
+import sklearn
+
+#进行词性还原
+wnl = WordNetLemmatizer()
+#停用词表
+stopword_list = nltk.corpus.stopwords.words('english')
+
+#分词
+def tokenize_text(text):
+    tokens = nltk.word_tokenize(text)
+    tokens = [token.strip() for token in tokens]
+    return tokens
+
+#去掉停用词
+def remove_stopwords(text):
+    tokens = tokenize_text(text)
+    filtered_tokens = [token for token in tokens if token not in stopword_list]
+    filtered_text = ' '.join(filtered_tokens)
+    return filtered_text
+
+#去掉特殊字符
+def remove_special_characters(text):
+    tokens = tokenize_text(text)
+    pattern = re.compile('[{}]'.format(re.escape(string.punctuation)))
+    filtered_tokens = filter(None, [re.sub(pattern, '', token) for token in tokens])
+    filtered_text = ' '.join(filtered_tokens)
+    return filtered_text
+
+#词性标注
+def pos_tag_text(text):
+    # convert penn treebank tag to wordnet tag
+    def penn_to_wn_tags(pos_tag):
+        if pos_tag.startswith('J'):
+            return wn.ADJ
+        elif pos_tag.startswith('V'):
+            return wn.VERB
+        elif pos_tag.startswith('N'):
+            return wn.NOUN
+        elif pos_tag.startswith('R'):
+            return wn.ADV
+        else:
+            return None
+    tokens = nltk.word_tokenize(text)
+    tagged_tokens = nltk.pos_tag(tokens)
+    tagged_lower_tokens = [(word.lower(), penn_to_wn_tags(pos_tag)) for word, pos_tag in tagged_tokens]
+    return tagged_lower_tokens
+
+#词形还原
+def lemmatize_text(text):
+    # lemmatize text based on pos tags
+    pos_tagged_text = pos_tag_text(text)
+    lemmatized_tokens = [wnl.lemmatize(word, pos_tag) if pos_tag
+                         else word
+                         for word, pos_tag in pos_tagged_text]
+    lemmatized_text = ' '.join(lemmatized_tokens)
+    return lemmatized_text
+
+#数据预处理
+def text_normalize(corpus, tokenize=False, lemmatize=False, stopword=True):
+    normalized_corpus = []
+    for text in corpus:
+        text = text.lower()
+        if lemmatize:
+            text = lemmatize_text(text)
+        text = remove_special_characters(text)
+        if stopword:
+            text = remove_stopwords(text)
+        if tokenize:
+            text = tokenize_text(text)
+        normalized_corpus.append(text)
+    return normalized_corpus
+
+
+f=open('D:\movie_reviews.csv',encoding='gb18030')
+dataset = pd.read_csv(f)
+#划分训练集和测试集
+import time
+time_start=time.time()
+train_data = dataset[:25000]
+test_data = dataset[25000:]
+# print(train_data.iloc[:,0])
+# print(test_data)
+# train_corpus=train_data.iloc[:,0]
+# test_corpus=test_data.iloc[:,0]
+# train_labels=train_data.iloc[:,1]
+# test_labels=test_data.iloc[:,1]
+train_corpus = np.array(train_data['review'])
+train_labels = np.array(train_data['sentiment'])
+test_corpus = np.array(test_data['review'])
+test_labels = np.array(test_data['sentiment'])
+norm_train_corpus = text_normalize(train_corpus)#对数据进行标准化处理
+norm_test_corpus = text_normalize(test_corpus)
+# 词袋模型-词频统计与向量化
+vectorizer = CountVectorizer(ngram_range=(1, 1))#m 和 n 的值表示切分的长度,这里是2-gram
+x = vectorizer.fit_transform(norm_train_corpus)#对训练集数据
+new_features = vectorizer.transform(norm_test_corpus)#转换测试数据
+
+# =============================================================================
+# ##支持向量机
+# =============================================================================
+lsvc = LinearSVC()
+lsvc.fit(x, train_labels)
+y_predict = lsvc.predict(new_features)
+
+import matplotlib.pyplot as plt
+from sklearn.metrics import roc_curve, auc  ###计算roc和auc
+ytest = []
+for i in test_labels:
+    if i =="positive":
+        ytest.append(1)    
+    else:
+        ytest.append(0)      
+y_pre3 = []
+for i in y_predict:
+    if i =="positive":
+        y_pre3.append(1)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     
+    else:
+        y_pre3.append(0)  
+fpr3,tpr3,threshold = roc_curve(ytest, y_pre3) ###计算真正率和假正率
+roc_auc3 = auc(fpr3,tpr3) ###计算auc的值
+
+time_end = time.time()
+print('totally cost',time_end-time_start)
+
+plt.figure()
+lw = 2
+plt.figure(figsize=(8,8))
+plt.plot(fpr, tpr, color='darkorange',
+         lw=lw, label='ROC curve of svm (area = %0.2f)' % roc_auc) ###假正率为横坐标，真正率为纵坐标做曲线
+#plt.plot(fpr2, tpr2, color='r',
+#         lw=lw, label='ROC curve of svm with BOW (area = %0.2f)' % roc_auc2) ###假正率为横坐标，真正率为纵坐标做曲线
+plt.plot(fpr3, tpr3, color='r',
+         lw=lw, label='ROC curve of DT (area = %0.2f)' % roc_auc3) ###假正率为横坐标，真正率为纵坐标做曲线
+plt.plot([0, 1], [0, 1], color='navy', lw=lw, linestyle='--')
+plt.xlim([0.0, 1.0])
+plt.ylim([0.0, 1.05])
+plt.xlabel('False Positive Rate')
+plt.ylabel('True Positive Rate')
+plt.title('roc of SVM')
+plt.legend(loc="lower right")
+plt.show()
