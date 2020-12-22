@@ -1,0 +1,141 @@
+import nltk#3.2.5
+#nltk.download()#现在已经无法下载了
+from nltk.corpus import sentiwordnet as swn
+import pandas as pd
+import numpy as np
+
+dataset=pd.read_csv(r'D:/movie_reviews.csv',encoding='gb18030')
+
+import time
+time_start = time.time()
+#分割数据
+train_data = dataset[:25000]
+test_data = dataset[25000:]
+
+test_reviews = np.array(test_data['review'])
+test_sentiments = np.array(test_data['sentiment'])
+
+#测试一个good这个词的情感得分
+good = list(swn.senti_synsets('good', 'n'))[0]
+print('Positive Polarity Score:', good.pos_score())
+print('Negative Polarity Score:', good.neg_score())
+print('Objective Score:', good.obj_score())
+
+import re
+import string
+
+#删除特殊字符
+def remove_special_characters(text):
+    tokens=nltk.word_tokenize(text)
+    pattern=re.compile('[{}]'.format(re.escape(string.punctuation)))
+    filtered_tokens=filter(None,[re.sub(pattern,'',token) for token in tokens])
+    filtered_text=' '.join(filtered_tokens)
+    return filtered_text
+
+#情感词汇分数确定
+def analyze_sentiment_sentiwordnet_lexicon(review,verbose=False):
+    # pre-process text
+    review = re.sub('<[^>]*>','',review)
+    review = remove_special_characters(review)
+    # tokenize and POS tag text tokens
+    text_tokens = nltk.word_tokenize(review)
+    tagged_text = nltk.pos_tag(text_tokens)
+    pos_score = neg_score = token_count = obj_score = 0
+    # get wordnet synsets based on POS tags
+    # get sentiment scores if synsets are found
+    for word, tag in tagged_text:
+        ss_set = None
+        if 'NN' in tag and swn.senti_synsets(word, 'n'):
+            ss_set =list(swn.senti_synsets(word, 'n'))
+        elif 'VB' in tag and swn.senti_synsets(word, 'v'):
+            ss_set =list(swn.senti_synsets(word, 'v'))
+        elif 'JJ' in tag and swn.senti_synsets(word, 'a'):
+            ss_set = list(swn.senti_synsets(word, 'a'))
+        elif 'RB' in tag and swn.senti_synsets(word, 'r'):
+            ss_set = list(swn.senti_synsets(word, 'r'))
+        # if senti-synset is found        
+        if ss_set:
+            # add scores for all found synsets
+            if ss_set!=[]:
+                ss_set=ss_set[0]
+                pos_score += ss_set.pos_score()
+                neg_score += ss_set.neg_score()
+                obj_score += ss_set.obj_score()
+                token_count += 1
+    
+    # aggregate final scores
+    final_score = pos_score - neg_score
+    norm_final_score = round(float(final_score) / token_count, 2)
+    final_sentiment = 'positive' if norm_final_score >= 0 else 'negative'
+    if verbose:
+        norm_obj_score = round(float(obj_score) / token_count, 2)
+        norm_pos_score = round(float(pos_score) / token_count, 2)
+        norm_neg_score = round(float(neg_score) / token_count, 2)
+        #print('objective score:',norm_obj_score)
+        #print('positive score:',norm_pos_score)
+        #print('negative score:',norm_neg_score)
+        #print('final score:',final_score)
+        
+    return final_sentiment
+
+predict_sentiments=[]
+for review, review_sentiment in zip(test_reviews,test_sentiments):
+    #print('Review:')
+    #print(review)
+    #print('Labeled Sentiment:', review_sentiment)        
+    final_sentiment = analyze_sentiment_sentiwordnet_lexicon(review,verbose=True)
+    predict_sentiments.append(final_sentiment)
+    #print('Predicted Sentiment:',final_sentiment)
+    #print('-'*60)
+
+
+#score
+from sklearn import metrics
+accuracy=np.round(metrics.accuracy_score(test_sentiments,predict_sentiments),4)
+precision=np.round(metrics.precision_score(test_sentiments,predict_sentiments,pos_label='positive'),4)
+recall=np.round(metrics.recall_score(test_sentiments,predict_sentiments,pos_label='positive'),4)
+f1=np.round(metrics.f1_score(test_sentiments,predict_sentiments,pos_label='positive'),4)
+print("accuracy:", accuracy)
+print("precision:", precision)
+print("recall:", recall)
+print("f1 score:", f1)
+
+#accuracy: 0.594
+#precision: 0.5573
+#recall: 0.9222
+#f1 score: 0.6948
+
+import matplotlib.pyplot as plt
+from sklearn.metrics import roc_curve, auc  ###计算roc和auc
+ytest = []
+for i in test_sentiments:
+    if i =="positive":
+        ytest.append(1)    
+    else:
+        ytest.append(0)      
+y_pre = []
+for i in predict_sentiments:
+    if i =="positive":
+        y_pre.append(1)    
+    else:
+        y_pre.append(0) 
+        
+fpr,tpr,threshold = roc_curve(ytest, y_pre) ###计算真正率和假正率
+roc_auc = auc(fpr,tpr) ###计算auc的值
+
+plt.figure()
+lw = 2
+plt.figure(figsize=(8,8))
+plt.plot(fpr, tpr, color='darkorange',
+         lw=lw, label='ROC curve (area = %0.2f)' % roc_auc) ###假正率为横坐标，真正率为纵坐标做曲线
+plt.plot([0, 1], [0, 1], color='navy', lw=lw, linestyle='--')
+plt.xlim([0.0, 1.0])
+plt.ylim([0.0, 1.05])
+plt.xlabel('False Positive Rate')
+plt.ylabel('True Positive Rate')
+plt.title('roc of sentiwordnet')
+plt.legend(loc="lower right")
+plt.show()
+
+time_end = time.time()
+print('totally cost',time_end-time_start)
